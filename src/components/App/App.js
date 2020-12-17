@@ -4,7 +4,6 @@ import axios from 'axios';
 import { subMonths, format } from 'date-fns';
 
 const useGithubApi = ({ initData, initConfig }) => {
-  const createdAfter = format(subMonths(new Date(), 1), 'yyyy-MM-dd');
   const BASE_URL = 'https://api.github.com/';
   const [data, setData] = useState(initData);
   const [config, setConfig] = useState(initConfig);
@@ -45,14 +44,28 @@ const RepoList = () => {
       }
     }
   });
+  return (
+    <>
+      <SearchPanel fetchRepos={fetchRepos} createdAfter={createdAfter} />
+      {isRepoListLoading && <div>Loading...</div>}
+      <ul>
+        {repoList.items.map(el => <Repo key={el.id} repo={el}/>)}
+      </ul>
+    </>
+  )
+}
+
+const SearchPanel = ({ fetchRepos, createdAfter }) => {
   const [{ data: licenseList }] = useGithubApi({
     initData: [],
     initConfig: {
       url: '/licenses',
     }
   });
-  const licenseKeyList = licenseList.map(l => l.key);
+
   const [selectedLicense, setSelectedLicsense] = useState('');
+  const [nameQuery, setNameQuery] = useState('');
+
   const handleLicenseSelect = (e) => setSelectedLicsense(e.target.value);
   const handleSearch = () => fetchRepos({
     url: `/search/repositories?q=${nameQuery}+in:name+created:>${createdAfter}+language:javascript+license:${selectedLicense}`,
@@ -61,22 +74,18 @@ const RepoList = () => {
       order: 'desc'
     }
   });
-  const [nameQuery, setNameQuery] = useState('');
   const handleNameQueryChange = (e) => setNameQuery(e.target.value);
+
   return (
-    <>
+    <div>
       <input type='text' value={nameQuery} onChange={handleNameQueryChange}/>
       <select value={selectedLicense} onChange={handleLicenseSelect}>
         <option value='' disabled>Select license</option>
-        {licenseKeyList.map(lk => <option key={lk} value={lk}>{lk}</option>)}
+        {licenseList.map(({ key }) => <option key={key} value={key}>{key}</option>)}
       </select>
       <button onClick={handleSearch}>Search</button>
-      {isRepoListLoading && <div>Loading...</div>}
-      <ul>
-        {repoList.items.map(el => <Repo key={el.id} repo={el}/>)}
-      </ul>
-    </>
-  )
+    </div>
+  );
 }
 
 const Repo = ({repo}) => {
