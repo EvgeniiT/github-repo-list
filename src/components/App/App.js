@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import './App.css';
 import axios from 'axios';
 import { subMonths, format } from 'date-fns';
+import { Card, List, Input, Select, Button, Row, Col } from 'antd';
+import 'antd/dist/antd.css';
 
 const useGithubApi = ({ initData, initConfig }) => {
   const BASE_URL = 'https://api.github.com/';
@@ -47,10 +49,24 @@ const RepoList = () => {
   return (
     <>
       <SearchPanel fetchRepos={fetchRepos} createdAfter={createdAfter} />
-      {isRepoListLoading && <div>Loading...</div>}
-      <ul>
-        {repoList.items.map(el => <Repo key={el.id} repo={el}/>)}
-      </ul>
+      <List
+        grid={{
+          gutter: 16,
+          xs: 1,
+          sm: 2,
+          md: 4,
+          lg: 4,
+          xl: 6,
+          xxl: 3,
+        }}
+        loading={isRepoListLoading}
+        dataSource={repoList.items}
+        renderItem={item => (
+          <List.Item>
+            <Repo repo={item}/>
+          </List.Item>
+        )}
+      />
     </>
   )
 }
@@ -66,31 +82,48 @@ const SearchPanel = ({ fetchRepos, createdAfter }) => {
   const [selectedLicense, setSelectedLicsense] = useState('');
   const [nameQuery, setNameQuery] = useState('');
 
-  const handleLicenseSelect = (e) => setSelectedLicsense(e.target.value);
-  const handleSearch = () => fetchRepos({
-    url: `/search/repositories?q=${nameQuery}+in:name+created:>${createdAfter}+language:javascript+license:${selectedLicense}`,
-    params: {
-      sort: 'stars',
-      order: 'desc'
-    }
-  });
+  const handleLicenseSelect = (value) => setSelectedLicsense(value);
+  const handleSearch = () => {
+    const nameSearch = nameQuery ? `${nameQuery}+in:name` : '';
+    const licenseSearch = selectedLicense ? `+license:${selectedLicense}` : '';
+    fetchRepos({
+      url: `/search/repositories?q=${nameSearch}+created:>${createdAfter}+language:javascript${licenseSearch}`,
+      params: {
+        sort: 'stars',
+        order: 'desc'
+      }
+    });
+  }
   const handleNameQueryChange = (e) => setNameQuery(e.target.value);
 
   return (
     <div>
-      <input type='text' value={nameQuery} onChange={handleNameQueryChange}/>
-      <select value={selectedLicense} onChange={handleLicenseSelect}>
-        <option value='' disabled>Select license</option>
-        {licenseList.map(({ key }) => <option key={key} value={key}>{key}</option>)}
-      </select>
-      <button onClick={handleSearch}>Search</button>
+        <Row gutter={[16, 16]} justify="center">
+          <Col xs={{span: 24}} sm={{span: 5}}>
+            <Input type='text' value={nameQuery} onChange={handleNameQueryChange} placeholder="Input name"/>
+          </Col>
+          <Col xs={{span: 24}} sm={{span: 5}}>
+            <Select value={selectedLicense} onChange={handleLicenseSelect} style={{width: '100%'}}>
+              <Select.Option value=''>All license</Select.Option>
+              {licenseList.map(({ key }) => <Select.Option key={key} value={key}>{key}</Select.Option>)}
+            </Select>
+          </Col>
+          <Col xs={{span: 24}} sm={{span: 5}}>
+            <Button type='primary' onClick={handleSearch} style={{width: '100%'}}>Search</Button>
+          </Col>
+        </Row>
     </div>
   );
 }
 
 const Repo = ({repo}) => {
+  const licenseName = repo?.license?.name || 'Not specified';
   return (
-    <li>{repo.name}</li>
+    <Card title={repo.name}>
+      <p>License: {licenseName}</p>
+      <p>Stars: {repo.stargazers_count}</p>
+      <p>{repo.description}</p>
+    </Card>
   )
 }
 
