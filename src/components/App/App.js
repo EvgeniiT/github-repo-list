@@ -1,24 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
+import { Octokit } from '@octokit/core';
 import axios from 'axios';
 import { subMonths, format } from 'date-fns';
-import { Card, List, Input, Select, Button, Row, Col } from 'antd';
+import { Card, List, Input, Select, Button, Row, Col, Pagination } from 'antd';
 import 'antd/dist/antd.css';
 
-const useGithubApi = ({ initData, initConfig }) => {
-  const BASE_URL = 'https://api.github.com/';
+const useGithubApi = (initData, initConfig) => {
+  // const BASE_URL = 'https://api.github.com/';
+  // const octokit = new Octokit();
   const [data, setData] = useState(initData);
   const [config, setConfig] = useState(initConfig);
   const [isLoading, setIsLoading] = useState(false);
   const [isError, setIsError] = useState(false);
- 
+  
   useEffect(() => {
+    const octokit = new Octokit();
     const fetchData = async () => {
       setIsError(false);
       setIsLoading(true);
  
       try {
-        const result = await axios.request({ baseURL: BASE_URL, ...config });
+        const result = await octokit.request({ ...config });
  
         setData(result.data);
       } catch (error) {
@@ -35,29 +38,53 @@ const useGithubApi = ({ initData, initConfig }) => {
 }
 
 const RepoList = () => {
-  const createdAfter = format(subMonths(new Date(), 1), 'yyyy-MM-dd');
-  const [{ data: repoList, isLoading: isRepoListLoading, isError }, fetchRepos] = useGithubApi({
-    initData: {items: []},
-    initConfig: {
-      url: `/search/repositories?q=created:>${createdAfter}+language:javascript`,
-      params: {
-        sort: 'stars',
-        order: 'desc'
-      }
-    }
-  });
+  const created = `>${format(subMonths(new Date(), 1), 'yyyy-MM-dd')}`;
+  const language = 'javascript';
+  const inQualifier = 'name';
+  const [searchString, setSearchString] = useState('');
+  const [license, setLicense] = useState('');
+  const [page, setPage] = useState(1);
+
+  const initConfig = {
+    url: '/search/repositories',
+    q: `in:name created:${created} language:javascript`,
+    sort: 'stars',
+    order: 'desc',
+    page: '1'
+  }
+
+  const [{ data: repoList, isLoading: isRepoListLoading, isError }, fetchRepos] = useGithubApi({total_count: 0, items: []}, initConfig);
+
+  useEffect(() => {
+    const licenseQualifier = license ? ` license:${license}` : '';
+    fetchRepos({
+      url: '/search/repositories',
+      q: `${searchString} in:${inQualifier} created:${created} language:${language}${licenseQualifier}`.trim(),
+      sort: 'stars',
+      order: 'desc',
+      page
+    });
+  }, [searchString, license, page, created, fetchRepos])
+
+  const handlePageChange = (page) => setPage(page);
+
   return (
     <>
-      <SearchPanel fetchRepos={fetchRepos} createdAfter={createdAfter} />
+      <SearchPanel fetchRepos={fetchRepos} setLicense={setLicense} setSearchString={setSearchString}/>
+      <Pagination
+        current={page}
+        total={repoList.total_count}
+        pageSize={30}
+        showSizeChanger={false}
+        onChange={handlePageChange}
+      />
       <List
         grid={{
           gutter: 16,
           xs: 1,
           sm: 2,
           md: 4,
-          lg: 4,
           xl: 6,
-          xxl: 3,
         }}
         loading={isRepoListLoading}
         dataSource={repoList.items}
@@ -71,28 +98,21 @@ const RepoList = () => {
   )
 }
 
-const SearchPanel = ({ fetchRepos, createdAfter }) => {
-  const [{ data: licenseList }] = useGithubApi({
-    initData: [],
-    initConfig: {
+const SearchPanel = ({ setLicense, setSearchString }) => {
+  const [{ data: licenseList }] = useGithubApi(
+    [],
+    {
       url: '/licenses',
     }
-  });
+  );
 
   const [selectedLicense, setSelectedLicsense] = useState('');
   const [nameQuery, setNameQuery] = useState('');
 
   const handleLicenseSelect = (value) => setSelectedLicsense(value);
   const handleSearch = () => {
-    const nameSearch = nameQuery ? `${nameQuery}+in:name` : '';
-    const licenseSearch = selectedLicense ? `+license:${selectedLicense}` : '';
-    fetchRepos({
-      url: `/search/repositories?q=${nameSearch}+created:>${createdAfter}+language:javascript${licenseSearch}`,
-      params: {
-        sort: 'stars',
-        order: 'desc'
-      }
-    });
+    setLicense(selectedLicense);
+    setSearchString(nameQuery);
   }
   const handleNameQueryChange = (e) => setNameQuery(e.target.value);
 
